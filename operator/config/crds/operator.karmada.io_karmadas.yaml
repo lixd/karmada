@@ -208,6 +208,11 @@ spec:
                             items:
                               type: string
                             type: array
+                          replicas:
+                            description: Replicas is the number of etcd members in
+                              the cluster
+                            format: int32
+                            type: integer
                           serverCertSANs:
                             description: ServerCertSANs sets extra Subject Alternative
                               Names for the etcd server signing cert.

@@ -170,6 +170,10 @@ func (data *initData) DataDir() string {
 	return data.karmadaDataDir
 }
 
+func (data *initData) GetDNSDomain() string {
+	return data.dnsDomain
+}
+
 func (data *initData) CrdsRomoteURL() string {
 	return data.crdRemoteURL
 }

@@ -150,6 +150,9 @@ type LocalEtcd struct {
 	// ImageMeta allows to customize the container used for etcd
 	Image `json:",inline"`
 
+	// Replicas is the number of etcd members in the cluster
+	// +optional
+	Replicas *int32 `json:"replicas,omitempty"`
 	// VolumeData describes the settings of etcd data store.
 	// We will support 3 modes: emtydir, hostPath, PVC. default by hostPath.
 	// +optional

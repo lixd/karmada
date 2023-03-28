@@ -2,6 +2,7 @@ package etcd
 
 import (
 	"fmt"
+	"k8s.io/klog/v2"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -17,10 +18,19 @@ import (
 )
 
 // EnsureKarmadaEtcd creates etcd StatefulSet and service resource.
-func EnsureKarmadaEtcd(client clientset.Interface, cfg *operatorv1alpha1.LocalEtcd, name, namespace string) error {
-	if err := installKarmadaEtcd(client, name, namespace, cfg); err != nil {
+func EnsureKarmadaEtcd(client clientset.Interface, cfg *operatorv1alpha1.LocalEtcd, dnsDomain, name, namespace string) error {
+	var err error
+	if cfg.VolumeData.VolumeClaim != nil {
+		klog.V(2).InfoS("[etcd] EnsureKarmadaEtcd", "type", "installKarmadaEtcdHA")
+		err = installKarmadaEtcdHA(client, dnsDomain, name, namespace, cfg)
+	} else if cfg.VolumeData.EmptyDir != nil {
+		klog.V(2).InfoS("[etcd] EnsureKarmadaEtcd", "type", "installKarmadaEtcd")
+		err = installKarmadaEtcd(client, name, namespace, cfg)
+	}
+	if err != nil {
 		return err
 	}
+
 	return createEtcdService(client, name, namespace)
 }
 
@@ -40,6 +50,48 @@ func installKarmadaEtcd(client clientset.Interface, name, namespace string, cfg 
 		Replicas:             pointer.Int32(1),
 		EtcdListenClientPort: constants.EtcdListenClientPort,
 		EtcdListenPeerPort:   constants.EtcdListenPeerPort,
+	})
+	if err != nil {
+		return fmt.Errorf("error when parsing Etcd statefuelset template: %w", err)
+	}
+
+	etcdStatefulSet := &appsv1.StatefulSet{}
+	if err = kuberuntime.DecodeInto(clientsetscheme.Codecs.UniversalDecoder(), etcdStatefuleSetBytes, etcdStatefulSet); err != nil {
+		return fmt.Errorf("error when decoding Etcd StatefulSet: %w", err)
+	}
+
+	if err = apiclient.CreateOrUpdateStatefulSet(client, etcdStatefulSet); err != nil {
+		return fmt.Errorf("error when creating Etcd statefulset, err: %w", err)
+	}
+
+	return nil
+}
+
+func installKarmadaEtcdHA(client clientset.Interface, dnsDomain, name, namespace string, cfg *operatorv1alpha1.LocalEtcd) error {
+	etcdStatefuleSetBytes, err := util.ParseTemplate(KarmadaEtcdStatefulSetHA, struct {
+		StatefulSetName, Namespace, Image                       string
+		EtcdClientService, CertsSecretName, EtcdPeerServiceName string
+		Replicas                                                *int32
+		EtcdListenClientPort, EtcdListenPeerPort                int32
+		ClusterDomain                                           string
+		VolumeName, StorageClassName                            string
+		AccessModes                                             []corev1.PersistentVolumeAccessMode
+		StorageSize                                             string
+	}{
+		StatefulSetName:      util.KarmadaEtcdName(name),
+		Namespace:            namespace,
+		Image:                cfg.Image.Name(),
+		EtcdClientService:    util.KarmadaEtcdClientName(name),
+		CertsSecretName:      util.EtcdCertSecretName(name),
+		EtcdPeerServiceName:  util.KarmadaEtcdName(name),
+		Replicas:             cfg.Replicas,
+		EtcdListenClientPort: constants.EtcdListenClientPort,
+		EtcdListenPeerPort:   constants.EtcdListenPeerPort,
+		ClusterDomain:        dnsDomain,
+		VolumeName:           "datadir",
+		StorageClassName:     *cfg.VolumeData.VolumeClaim.Spec.StorageClassName,
+		AccessModes:          cfg.VolumeData.VolumeClaim.Spec.AccessModes,
+		StorageSize:          cfg.VolumeData.VolumeClaim.Spec.Resources.Requests.Storage().String(),
 	})
 	if err != nil {
 		return fmt.Errorf("error when parsing Etcd statefuelset template: %w", err)

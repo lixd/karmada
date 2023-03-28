@@ -12,6 +12,7 @@ import (
 type InitData interface {
 	certs.CertStore
 	GetName() string
+	GetDNSDomain() string
 	GetNamespace() string
 	SetControlplaneConifg(config *rest.Config)
 	ControlplaneConifg() *rest.Config
