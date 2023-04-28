@@ -17,7 +17,7 @@ type InitData interface {
 	SetControlplaneConifg(config *rest.Config)
 	ControlplaneConifg() *rest.Config
 	RemoteClient() clientset.Interface
-	KarmadaClient() clientset.Interface
+	KarmadaClient() *clientset.Clientset
 	DataDir() string
 	CrdsRomoteURL() string
 	KarmadaVersion() string

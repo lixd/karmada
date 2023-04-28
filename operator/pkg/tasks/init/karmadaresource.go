@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	bootstrapagent "github.com/karmada-io/karmada/pkg/karmadactl/cmdinit/bootstraptoken/agent"
+	"github.com/karmada-io/karmada/pkg/karmadactl/cmdinit/bootstraptoken/clusterinfo"
+	"github.com/karmada-io/karmada/pkg/karmadactl/cmdinit/karmada"
 	"path"
 	"regexp"
 	"strings"
@@ -47,6 +50,10 @@ func NewKarmadaResourcesTask() workflow.Task {
 				Name: "APIService",
 				Run:  runAPIService,
 			},
+			{
+				Name: "externalResource",
+				Run:  createExternalResource,
+			},
 		},
 	}
 }
@@ -74,6 +81,15 @@ func runSystemNamespace(r workflow.RunData) error {
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create namespace %s, err: %w", data.GetNamespace(), err)
+	}
+
+	err = apiclient.CreateNamespace(data.KarmadaClient(), &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: constants.KarmadaSystemNamespace,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create namespace %s, err: %w", constants.KarmadaSystemNamespace, err)
 	}
 
 	klog.V(2).InfoS("[systemName] Successfully created karmada system namespace", "namespace", data.GetNamespace(), "karmada", klog.KObj(data))
@@ -217,4 +233,55 @@ func splitToCrdNameFormFile(file string, start, end string) string {
 		crdName = crdName[:index]
 	}
 	return crdName
+}
+
+func createExternalResource(r workflow.RunData) error {
+	data, ok := r.(InitData)
+	if !ok {
+		return errors.New("createExternalResource task invoked with an invalid data struct")
+	}
+	if err := createExtralResources(data); err != nil {
+		klog.ErrorS(err, "createExternalResource failed", "karmada", data.GetName())
+		return err
+	}
+
+	klog.V(2).InfoS("[KarmadaResourcesTask] createExternalResource success ")
+	return nil
+}
+
+func createExtralResources(data InitData) error {
+	karmadaClient := data.KarmadaClient()
+
+	// grant proxy permission to "system:admin".
+	if err := karmada.GrantProxyPermissionToAdmin(karmadaClient); err != nil {
+		return err
+	}
+
+	// Create the cluster-info ConfigMap with the associated RBAC rules
+	if err := clusterinfo.CreateBootstrapConfigMapIfNotExistsByOperator(data.RemoteClient(), karmadaClient, data.GetName(), data.GetNamespace()); err != nil {
+		return fmt.Errorf("error creating bootstrap ConfigMap: %v", err)
+	}
+
+	if err := clusterinfo.CreateClusterInfoRBACRules(karmadaClient); err != nil {
+		return fmt.Errorf("error creating clusterinfo RBAC rules: %v", err)
+	}
+
+	// grant limited access permission to 'karmada-agent'
+	if err := karmada.GrantAccessPermissionToAgent(karmadaClient); err != nil {
+		return err
+	}
+
+	if err := bootstrapagent.AllowBootstrapTokensToPostCSRs(karmadaClient); err != nil {
+		return err
+	}
+
+	if err := bootstrapagent.AutoApproveKarmadaAgentBootstrapTokens(karmadaClient); err != nil {
+		return err
+	}
+
+	if err := bootstrapagent.AutoApproveAgentCertificateRotation(karmadaClient); err != nil {
+		return err
+	}
+
+	return nil
 }

@@ -53,7 +53,7 @@ type initData struct {
 	karmadaVersion      *utilversion.Version
 	controlplaneConifig *rest.Config
 	remoteClient        clientset.Interface
-	karmadaClient       clientset.Interface
+	karmadaClient       *clientset.Clientset
 	dnsDomain           string
 	crdRemoteURL        string
 	karmadaDataDir      string
@@ -140,7 +140,7 @@ func (data *initData) RemoteClient() clientset.Interface {
 	return data.remoteClient
 }
 
-func (data *initData) KarmadaClient() clientset.Interface {
+func (data *initData) KarmadaClient() *clientset.Clientset {
 	if data.karmadaClient == nil {
 		data.Once.Do(func() {
 			client, err := clientset.NewForConfig(data.controlplaneConifig)

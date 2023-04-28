@@ -14,8 +14,14 @@ const (
 	karmadaAgentGroup             = "system:nodes"
 )
 
+// GrantProxyPermissionToAdmin grants the proxy permission to "system:admin"
+func GrantProxyPermissionToAdmin(clientSet kubernetes.Interface) error {
+	return grantProxyPermissionToAdmin(clientSet)
+}
+
 // grantProxyPermissionToAdmin grants the proxy permission to "system:admin"
 func grantProxyPermissionToAdmin(clientSet kubernetes.Interface) error {
+	klog.Infoln("[grantProxyPermissionToAdmin] start")
 	proxyAdminClusterRole := utils.ClusterRoleFromRules(clusterProxyAdminRole, []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{"cluster.karmada.io"},
@@ -40,8 +46,12 @@ func grantProxyPermissionToAdmin(clientSet kubernetes.Interface) error {
 	if err != nil {
 		return err
 	}
+	klog.Infoln("[grantProxyPermissionToAdmin] success")
 
 	return nil
+}
+func GrantAccessPermissionToAgent(clientSet kubernetes.Interface) error {
+	return grantAccessPermissionToAgent(clientSet)
 }
 
 // grantAccessPermissionToAgent grants the limited access permission to 'karmada-agent'

@@ -1,8 +1,9 @@
 package clusterinfo
 
 import (
+	"context"
 	"fmt"
-
+	"github.com/karmada-io/karmada/operator/pkg/util"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -48,6 +49,54 @@ func CreateBootstrapConfigMapIfNotExists(clientSet *kubernetes.Clientset, file s
 	// Create or update the ConfigMap in the kube-public namespace
 	klog.V(1).Infoln("[bootstrap-token] creating/updating ConfigMap in kube-public namespace")
 	return cmdutil.CreateOrUpdateConfigMap(clientSet, &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bootstrapapi.ConfigMapClusterInfo,
+			Namespace: metav1.NamespacePublic,
+		},
+		Data: map[string]string{
+			bootstrapapi.KubeConfigKey: string(bootstrapBytes),
+		},
+	})
+}
+
+// CreateBootstrapConfigMapIfNotExistsByOperator creates the kube-public ConfigMap if it doesn't exist already
+func CreateBootstrapConfigMapIfNotExistsByOperator(hostClient kubernetes.Interface, karmadaClient *kubernetes.Clientset, name, namespace string) error {
+	cm, err := hostClient.CoreV1().Secrets(namespace).Get(context.Background(), util.AdminKubeconfigSercretName(name), metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	key := "config"
+	//key:=bootstrapapi.KubeConfigKey
+	kubeconfig, ok := cm.Data["config"]
+	if !ok {
+		return fmt.Errorf("failed to load admin kubeconfig,secret:%s key:%s %w", util.AdminKubeconfigSercretName(name), key, err)
+	}
+
+	klog.V(1).Infoln("[bootstrap-token] loading karmada admin kubeconfig")
+	adminConfig, err := clientcmd.Load(kubeconfig)
+	if err != nil {
+		return fmt.Errorf("failed to load admin kubeconfig, %w", err)
+	}
+	if err = clientcmdapi.FlattenConfig(adminConfig); err != nil {
+		return err
+	}
+
+	adminCluster := adminConfig.Contexts[adminConfig.CurrentContext].Cluster
+	// Copy the cluster from admin.conf to the bootstrap kubeconfig, contains the CA cert and the server URL
+	klog.V(1).Infoln("[bootstrap-token] copying the cluster from admin.conf to the bootstrap kubeconfig")
+	bootstrapConfig := &clientcmdapi.Config{
+		Clusters: map[string]*clientcmdapi.Cluster{
+			"": adminConfig.Clusters[adminCluster],
+		},
+	}
+	bootstrapBytes, err := clientcmd.Write(*bootstrapConfig)
+	if err != nil {
+		return err
+	}
+
+	// Create or update the ConfigMap in the kube-public namespace
+	klog.V(1).Infoln("[bootstrap-token] creating/updating ConfigMap in kube-public namespace")
+	return cmdutil.CreateOrUpdateConfigMap(karmadaClient, &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      bootstrapapi.ConfigMapClusterInfo,
 			Namespace: metav1.NamespacePublic,
