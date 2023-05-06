@@ -1523,6 +1523,12 @@ spec:
                 description: ObservedGeneration is the last observed generation.
                 format: int64
                 type: integer
+              phase:
+                description: Phase is a description of the current cluster status,
+                  summarizing the various conditions, possible active updates etc.
+                  This field is for informational purpose only and no logic should
+                  be tied to the phase.
+                type: string
               secretRef:
                 description: after the karmada installed, restore the kubeconfig to
                   secret.

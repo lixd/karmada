@@ -113,10 +113,12 @@ func createEtcdService(client clientset.Interface, name, namespace string) error
 	etcdServicePeerBytes, err := util.ParseTemplate(KarmadaEtcdPeerService, struct {
 		ServiceName, Namespace                   string
 		EtcdListenClientPort, EtcdListenPeerPort int32
+		StatefulSetName                          string
 	}{
 		ServiceName:          util.KarmadaEtcdName(name),
 		Namespace:            namespace,
 		EtcdListenClientPort: constants.EtcdListenClientPort,
+		StatefulSetName:      util.KarmadaEtcdName(name),
 		EtcdListenPeerPort:   constants.EtcdListenPeerPort,
 	})
 	if err != nil {
@@ -135,10 +137,12 @@ func createEtcdService(client clientset.Interface, name, namespace string) error
 	etcdClientServiceBytes, err := util.ParseTemplate(KarmadaEtcdClientService, struct {
 		ServiceName, Namespace string
 		EtcdListenClientPort   int32
+		StatefulSetName        string
 	}{
 		ServiceName:          util.KarmadaEtcdClientName(name),
 		Namespace:            namespace,
 		EtcdListenClientPort: constants.EtcdListenClientPort,
+		StatefulSetName:      util.KarmadaEtcdName(name),
 	})
 	if err != nil {
 		return fmt.Errorf("error when parsing Etcd client serive template: %w", err)

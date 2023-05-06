@@ -589,7 +589,28 @@ type KarmadaStatus struct {
 	// Conditions represents the latest available observations of a karmada's current state.
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	// Phase is a description of the current cluster status, summarizing the various conditions,
+	// possible active updates etc. This field is for informational purpose only and no logic
+	// should be tied to the phase.
+	// +optional
+	Phase KarmadaPhase `json:"phase,omitempty"`
 }
+
+type KarmadaPhase string
+
+// These are the valid phases of a project.
+const (
+	KarmadaInitializing     KarmadaPhase = "Initializing"
+	KarmadaInitializeOK     KarmadaPhase = "InitializeOK"
+	KarmadaInitializeFailed KarmadaPhase = "InitializeFailed"
+	KarmadaInstalling       KarmadaPhase = "Installing"
+	KarmadaInstallFailed    KarmadaPhase = "InstallFailed"
+	KarmadaRunning          KarmadaPhase = "Running"
+	KarmadaUpgrading        KarmadaPhase = "Upgrading"
+	KarmadaUpgradeFailed    KarmadaPhase = "UpgradeFailed"
+	KarmadaTerminating      KarmadaPhase = "Terminating"
+	KarmadaTerminateFailed  KarmadaPhase = "TerminateFailed"
+)
 
 // LocalSecretReference is a reference to a secret within the enclosing
 // namespace.

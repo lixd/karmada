@@ -67,10 +67,12 @@ func installKarmadaAPIServer(client clientset.Interface, cfg *operatorv1alpha1.K
 func createKarmadaAPIServerService(client clientset.Interface, cfg *operatorv1alpha1.KarmadaAPIServer, name, namespace string) error {
 	karmadaApiserverServiceBytes, err := util.ParseTemplate(KarmadaApiserverService, struct {
 		ServiceName, Namespace, ServiceType string
+		DeploymentName                      string
 	}{
-		ServiceName: util.KarmadaAPIServerName(name),
-		Namespace:   namespace,
-		ServiceType: string(cfg.ServiceType),
+		ServiceName:    util.KarmadaAPIServerName(name),
+		Namespace:      namespace,
+		ServiceType:    string(cfg.ServiceType),
+		DeploymentName: util.KarmadaAPIServerName(name),
 	})
 	if err != nil {
 		return fmt.Errorf("error when parsing karmadaApiserver serive template: %w", err)
@@ -122,9 +124,11 @@ func installKarmadaAggregratedAPIServer(client clientset.Interface, cfg *operato
 func createKarmadaAggregratedAPIServerService(client clientset.Interface, name, namespace string) error {
 	aggregatedAPIServerServiceBytes, err := util.ParseTemplate(KarmadaAggregatedAPIServerService, struct {
 		ServiceName, Namespace string
+		DeploymentName         string
 	}{
-		ServiceName: util.KarmadaAggratedAPIServerName(name),
-		Namespace:   namespace,
+		ServiceName:    util.KarmadaAggratedAPIServerName(name),
+		Namespace:      namespace,
+		DeploymentName: util.KarmadaAggratedAPIServerName(name),
 	})
 	if err != nil {
 		return fmt.Errorf("error when parsing karmadaAggregratedAPIServer serive template: %w", err)

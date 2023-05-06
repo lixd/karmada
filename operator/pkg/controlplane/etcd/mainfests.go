@@ -18,10 +18,12 @@ spec:
   selector:
     matchLabels:
       karmada-app: etcd
+      karmada-etcd: {{ .StatefulSetName }}
   template:
     metadata:
       labels:
         karmada-app: etcd
+        karmada-etcd: {{ .StatefulSetName }}
     tolerations:
     - operator: Exists
     spec:
@@ -91,10 +93,12 @@ spec:
   selector:
     matchLabels:
       karmada-app: etcd
+      karmada-etcd: {{ .StatefulSetName }}
   template:
     metadata:
       labels:
         karmada-app: etcd
+        karmada-etcd: {{ .StatefulSetName }}
     spec:
       containers:
         - name: etcd
@@ -130,7 +134,7 @@ spec:
               eps() {
                   EPS=""
                   for i in $(seq 0 $((${INITIAL_CLUSTER_SIZE} - 1))); do
-                      EPS="${EPS}${EPS:+,}https://${SET_NAME}-${i}.${SET_NAME}.${MY_NAMESPACE}.svc.cluster.local:{{ .EtcdListenClientPort }}"
+                      EPS="${EPS}${EPS:+,}https://${SET_NAME}-${i}.${SET_NAME}.${MY_NAMESPACE}.svc.{{ .ClusterDomain }}:{{ .EtcdListenClientPort }}"
                   done
                   echo ${EPS}
               }
@@ -142,7 +146,7 @@ spec:
               initial_peers() {
                   PEERS=""
                   for i in $(seq 0 $((${INITIAL_CLUSTER_SIZE} - 1))); do
-                    PEERS="${PEERS}${PEERS:+,}${SET_NAME}-${i}=https://${SET_NAME}-${i}.${SET_NAME}.${MY_NAMESPACE}.svc.cluster.local:{{ .EtcdListenPeerPort }}"
+                    PEERS="${PEERS}${PEERS:+,}${SET_NAME}-${i}=https://${SET_NAME}-${i}.${SET_NAME}.${MY_NAMESPACE}.svc.{{ .ClusterDomain }}:{{ .EtcdListenPeerPort }}"
                   done
                   echo ${PEERS}
               }
@@ -166,8 +170,8 @@ spec:
 
                   echo "Adding new member"
 
-                  echo "ETCDCTL_API=3 etcdctl --endpoints=$(eps) member add ${HOSTNAME} --peer-urls=https://${HOSTNAME}.${SET_NAME}.${MY_NAMESPACE}.svc.cluster.local:{{ .EtcdListenPeerPort }}"
-                  ETCDCTL_API=3 etcdctl member --endpoints=$(eps) add ${HOSTNAME} --peer-urls=https://${HOSTNAME}.${SET_NAME}.${MY_NAMESPACE}.svc.cluster.local:{{ .EtcdListenPeerPort }} | grep "^ETCD_" > /var/run/etcd/new_member_envs
+                  echo "ETCDCTL_API=3 etcdctl --endpoints=$(eps) member add ${HOSTNAME} --peer-urls=https://${HOSTNAME}.${SET_NAME}.${MY_NAMESPACE}.svc.{{ .ClusterDomain }}:{{ .EtcdListenPeerPort }}"
+                  ETCDCTL_API=3 etcdctl member --endpoints=$(eps) add ${HOSTNAME} --peer-urls=https://${HOSTNAME}.${SET_NAME}.${MY_NAMESPACE}.svc.{{ .ClusterDomain }}:{{ .EtcdListenPeerPort }} | grep "^ETCD_" > /var/run/etcd/new_member_envs
 
                   if [ $? -ne 0 ]; then
                       echo "member add ${HOSTNAME} error."
@@ -180,11 +184,11 @@ spec:
                   cat /var/run/etcd/new_member_envs
                   . /var/run/etcd/new_member_envs
 
-                  echo "etcd --name ${HOSTNAME} --initial-advertise-peer-urls ${ETCD_INITIAL_ADVERTISE_PEER_URLS} --listen-peer-urls https://${POD_IP}:{{ .EtcdListenPeerPort }} --listen-client-urls https://${POD_IP}:{{ .EtcdListenClientPort }},https://127.0.0.1:{{ .EtcdListenClientPort }} --advertise-client-urls https://${HOSTNAME}.${SET_NAME}.${MY_NAMESPACE}.svc.cluster.local:{{ .EtcdListenClientPort }} --data-dir /var/run/etcd/default.etcd --initial-cluster ${ETCD_INITIAL_CLUSTER} --initial-cluster-state ${ETCD_INITIAL_CLUSTER_STATE}"
+                  echo "etcd --name ${HOSTNAME} --initial-advertise-peer-urls ${ETCD_INITIAL_ADVERTISE_PEER_URLS} --listen-peer-urls https://${POD_IP}:{{ .EtcdListenPeerPort }} --listen-client-urls https://${POD_IP}:{{ .EtcdListenClientPort }},https://127.0.0.1:{{ .EtcdListenClientPort }} --advertise-client-urls https://${HOSTNAME}.${SET_NAME}.${MY_NAMESPACE}.svc.{{ .ClusterDomain }}:{{ .EtcdListenClientPort }} --data-dir /var/run/etcd/default.etcd --initial-cluster ${ETCD_INITIAL_CLUSTER} --initial-cluster-state ${ETCD_INITIAL_CLUSTER_STATE}"
 
                   exec etcd --listen-peer-urls https://${POD_IP}:{{ .EtcdListenPeerPort }} \
                       --listen-client-urls https://${POD_IP}:{{ .EtcdListenClientPort }},https://127.0.0.1:{{ .EtcdListenClientPort }} \
-                      --advertise-client-urls https://${HOSTNAME}.${SET_NAME}.${MY_NAMESPACE}.svc.cluster.local:{{ .EtcdListenClientPort }} \
+                      --advertise-client-urls https://${HOSTNAME}.${SET_NAME}.${MY_NAMESPACE}.svc.{{ .ClusterDomain }}:{{ .EtcdListenClientPort }} \
                       --client-cert-auth=true \
                       --trusted-ca-file=/etc/karmada/pki/etcd/etcd-ca.crt \
                       --cert-file=/etc/karmada/pki/etcd/etcd-server.crt \
@@ -198,8 +202,8 @@ spec:
 
               for i in $(seq 0 $((${INITIAL_CLUSTER_SIZE} - 1))); do
                   while true; do
-                      echo "Waiting for ${SET_NAME}-${i}.${SET_NAME}.${MY_NAMESPACE}.svc.cluster.local to come up"
-                      ping -W 1 -c 1 ${SET_NAME}-${i}.${SET_NAME}.${MY_NAMESPACE}.svc.cluster.local > /dev/null && break
+                      echo "Waiting for ${SET_NAME}-${i}.${SET_NAME}.${MY_NAMESPACE}.svc.{{ .ClusterDomain }} to come up"
+                      ping -W 1 -c 1 ${SET_NAME}-${i}.${SET_NAME}.${MY_NAMESPACE}.svc.{{ .ClusterDomain }} > /dev/null && break
                       sleep 1s
                   done
               done
@@ -207,10 +211,10 @@ spec:
               echo "join member ${HOSTNAME}"
               # join member
               exec etcd --name ${HOSTNAME} \
-                  --initial-advertise-peer-urls https://${HOSTNAME}.${SET_NAME}.${MY_NAMESPACE}.svc.cluster.local:{{ .EtcdListenPeerPort }} \
+                  --initial-advertise-peer-urls https://${HOSTNAME}.${SET_NAME}.${MY_NAMESPACE}.svc.{{ .ClusterDomain }}:{{ .EtcdListenPeerPort }} \
                   --listen-peer-urls https://${POD_IP}:{{ .EtcdListenPeerPort }} \
                   --listen-client-urls https://${POD_IP}:{{ .EtcdListenClientPort }},https://127.0.0.1:{{ .EtcdListenClientPort }} \
-                  --advertise-client-urls https://${HOSTNAME}.${SET_NAME}.${MY_NAMESPACE}.svc.cluster.local:{{ .EtcdListenClientPort }} \
+                  --advertise-client-urls https://${HOSTNAME}.${SET_NAME}.${MY_NAMESPACE}.svc.{{ .ClusterDomain }}:{{ .EtcdListenClientPort }} \
                   --initial-cluster-token etcd-cluster-1 \
                   --data-dir /var/run/etcd/default.etcd \
                   --initial-cluster $(initial_peers) \
@@ -239,7 +243,7 @@ spec:
                     eps() {
                         EPS=""
                         for i in $(seq 0 $((${INITIAL_CLUSTER_SIZE} - 1))); do
-                            EPS="${EPS}${EPS:+,}https://${SET_NAME}-${i}.${SET_NAME}.${MY_NAMESPACE}.svc.cluster.local:{{ .EtcdListenClientPort }}"
+                            EPS="${EPS}${EPS:+,}https://${SET_NAME}-${i}.${SET_NAME}.${MY_NAMESPACE}.svc.{{ .ClusterDomain }}:{{ .EtcdListenClientPort }}"
                         done
                         echo ${EPS}
                     }
@@ -306,6 +310,7 @@ spec:
     targetPort: {{ .EtcdListenClientPort }}
   selector:
     karmada-app: etcd
+    karmada-etcd: {{ .StatefulSetName }}
   type: ClusterIP
  `
 
@@ -333,6 +338,7 @@ spec:
    type: ClusterIP
    selector:
      karmada-app: etcd
+     karmada-etcd: {{ .StatefulSetName }}
    publishNotReadyAddresses: true
   `
 )

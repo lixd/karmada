@@ -16,10 +16,12 @@ spec:
   selector:
     matchLabels:
       karmada-app: kube-apiserver
+      karmada-apiserver: {{ .DeploymentName }}
   template:
     metadata:
       labels:
         karmada-app: kube-apiserver
+        karmada-apiserver: {{ .DeploymentName }}
     spec:
       automountServiceAccountToken: false
       containers:
@@ -128,6 +130,7 @@ spec:
     targetPort: 5443
   selector:
     karmada-app: kube-apiserver
+    karmada-apiserver: {{ .DeploymentName }}
   type: {{ .ServiceType }}
 `
 
@@ -146,10 +149,12 @@ spec:
   selector:
     matchLabels:
       karmada-app: karmada-aggregated-apiserver
+      karmada-aggregated-apiserver: {{ .DeploymentName }}
   template:
     metadata:
       labels:
         karmada-app: karmada-aggregated-apiserver
+        karmada-aggregated-apiserver: {{ .DeploymentName }}
     spec:
       automountServiceAccountToken: false
       containers:
@@ -209,6 +214,7 @@ spec:
     targetPort: 443
   selector:
     karmada-app: karmada-aggregated-apiserver
+    karmada-aggregated-apiserver: {{ .DeploymentName }}
   type: ClusterIP
 `
 )

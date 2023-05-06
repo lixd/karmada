@@ -2,6 +2,7 @@ package karmada
 
 import (
 	"context"
+	"reflect"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -60,21 +61,59 @@ func (ctrl *Controller) Reconcile(ctx context.Context, req controllerruntime.Req
 			if err := ctrl.Update(ctx, karmada); err != nil {
 				return controllerruntime.Result{}, err
 			}
+			// set to initializing phase
+			deepCopy := karmada.DeepCopy()
+			deepCopy.Status.Phase = operatorv1alpha1.KarmadaInitializing
+			if !reflect.DeepEqual(karmada, deepCopy) {
+				if err := ctrl.Status().Update(ctx, deepCopy); err != nil {
+					return controllerruntime.Result{}, err
+				}
+			}
 		}
-	}
-
-	klog.V(2).InfoS("Reconciling karmada", "name", req.Name)
-	planner, err := NewPlannerFor(karmada, ctrl.Client, ctrl.Config)
-	if err != nil {
-		return controllerruntime.Result{}, err
-	}
-	if err := planner.Execute(); err != nil {
-		return controllerruntime.Result{}, err
-	}
-
-	// The object is being deleted
-	if !karmada.DeletionTimestamp.IsZero() {
+	} else {
+		// without our finalizer, skip reconciliation
+		if !controllerutil.ContainsFinalizer(karmada, ControllerFinalizerName) {
+			return controllerruntime.Result{}, nil
+		}
+		// set to terminating phase
+		deepCopy := karmada.DeepCopy()
+		deepCopy.Status.Phase = operatorv1alpha1.KarmadaTerminating
+		if !reflect.DeepEqual(karmada, deepCopy) {
+			if err := ctrl.Status().Update(ctx, deepCopy); err != nil {
+				return controllerruntime.Result{}, err
+			}
+		}
+		// The object is being deleted, deinitialize karmada
+		planner, err := KarmadaDeInit(karmada, ctrl.Client, ctrl.Config)
+		if err != nil {
+			return controllerruntime.Result{}, err
+		}
+		if err := planner.Execute(); err != nil {
+			return controllerruntime.Result{}, err
+		}
+		// remove finalizer
 		return ctrl.removeFinalizer(ctx, karmada)
+	}
+	klog.V(2).InfoS("Reconciling karmada", "name", req.Name)
+
+	if karmada.Status.Phase == operatorv1alpha1.KarmadaInitializing {
+		// if not running,execute planner
+		// The object is being deleted, deinitialize karmada
+		planner, err := KarmadaInit(karmada, ctrl.Client, ctrl.Config)
+		if err != nil {
+			return controllerruntime.Result{}, err
+		}
+		if err := planner.Execute(); err != nil {
+			return controllerruntime.Result{}, err
+		}
+		// set to running phase
+		deepCopy := karmada.DeepCopy()
+		deepCopy.Status.Phase = operatorv1alpha1.KarmadaRunning
+		if !reflect.DeepEqual(karmada, deepCopy) {
+			if err := ctrl.Status().Update(ctx, deepCopy); err != nil {
+				return controllerruntime.Result{}, err
+			}
+		}
 	}
 
 	return controllerruntime.Result{}, nil

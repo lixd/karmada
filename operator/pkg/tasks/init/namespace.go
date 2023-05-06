@@ -33,7 +33,7 @@ func runNamespace(r workflow.RunData) error {
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create namespace for %s, err: %w", data.GetName(), err)
+		return fmt.Errorf("failed to create namespace %s for %s, err: %w", data.GetNamespace(), data.GetName(), err)
 	}
 
 	return nil

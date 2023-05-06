@@ -32,6 +32,49 @@ type Planner struct {
 	job     *workflow.Job
 }
 
+func KarmadaInit(karmada *operatorv1alpha1.Karmada, c client.Client, config *rest.Config) (*Planner, error) {
+	return NewPlannerForDirect(karmada, c, config, InitAction)
+}
+
+func KarmadaDeInit(karmada *operatorv1alpha1.Karmada, c client.Client, config *rest.Config) (*Planner, error) {
+	return NewPlannerForDirect(karmada, c, config, DeInitAction)
+}
+
+// NewPlannerForDirect creates planner, it will recognize the karmada resource action
+// and create different job.
+func NewPlannerForDirect(karmada *operatorv1alpha1.Karmada, c client.Client, config *rest.Config, action Action) (*Planner, error) {
+	var job *workflow.Job
+
+	switch action {
+	case InitAction:
+		opts := []operator.InitOpt{
+			operator.NewInitOptWithKarmada(karmada),
+			operator.NewInitOptWithKubeconfig(config),
+		}
+
+		options := operator.NewJobInitOptions(opts...)
+		job = operator.NewInitJob(options)
+
+	case DeInitAction:
+		opts := []operator.DeInitOpt{
+			operator.NewDeInitOptWithKarmada(karmada),
+			operator.NewDeInitOptWithKubeconfig(config),
+		}
+
+		options := operator.NewJobDeInitOptions(opts...)
+		job = operator.NewDeInitDataJob(options)
+	default:
+		return nil, fmt.Errorf("failed to recognize action for karmada %s", karmada.Name)
+	}
+
+	return &Planner{
+		karmada: karmada,
+		Client:  c,
+		job:     job,
+		action:  action,
+	}, nil
+}
+
 // NewPlannerFor creates planner, it will recognize the karmada resource action
 // and create different job.
 func NewPlannerFor(karmada *operatorv1alpha1.Karmada, c client.Client, config *rest.Config) (*Planner, error) {
